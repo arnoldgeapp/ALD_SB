@@ -1,0 +1,44 @@
+# --- Python runtime cruft ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.python-version
+
+# --- Virtual environments & tooling ---
+.venv/
+venv/
+.env
+.env.*       # e.g., .env.dev, .env.prod
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.tox/
+.nox/
+
+# --- Build / packaging (PyInstaller, wheels, etc.) ---
+/dist/
+/build/
+*.spec
+pip-wheel-metadata/
+
+# --- Notebooks & editor caches ---
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.code-workspace
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- App outputs & data (tune to your needs) ---
+outputs/
+logs/
+*.log
+data/
+*.csv
+*.xlsx
+*.pdf
