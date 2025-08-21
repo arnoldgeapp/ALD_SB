@@ -793,7 +793,17 @@ class BookGalleryScreen(tk.Frame):
                     )
                     code_label.pack(pady=(3, 1))
                     
-                    # (Removed) mini barcode representation - keep card compact with code and description only
+                    # Mini barcode representation
+                    barcode_text = self.generate_mini_code128_display(code)
+                    barcode_label = tk.Label(
+                        card,
+                        text=barcode_text,
+                        font=('Courier New', 6),
+                        fg='black',
+                        bg='white',
+                        width=15
+                    )
+                    barcode_label.pack(pady=1)
                     
                     # Description (truncated)
                     if desc and desc != "nan":
@@ -1128,7 +1138,17 @@ class BookGalleryScreen(tk.Frame):
                     )
                     code_label.pack(pady=(3, 1))
                     
-                    # (Removed) mini barcode representation - keep card compact with code and description only
+                    # Mini barcode representation
+                    barcode_text = self.generate_mini_code128_display(code)
+                    barcode_label = tk.Label(
+                        card,
+                        text=barcode_text,
+                        font=('Courier New', 6),
+                        fg='black',
+                        bg='white',
+                        width=15
+                    )
+                    barcode_label.pack(pady=1)
                     
                     # Description (truncated)
                     if desc and desc != "nan":
