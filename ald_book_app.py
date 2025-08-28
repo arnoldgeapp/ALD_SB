@@ -335,4 +335,3 @@ class ALDApp(tk.Tk):
 if __name__ == "__main__":
     app = ALDApp()
     app.mainloop()
-    #update
