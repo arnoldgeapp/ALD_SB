@@ -5,7 +5,7 @@ import math
 # Import the separate modules
 from book_gallery import BookGalleryScreen
 from code_management import CodeManagementScreen
-
+from enhanced_code_browser import EnhancedCodeBrowserScreen
 
 class ModernMainMenu(tk.Frame):
     def __init__(self, parent, controller):
