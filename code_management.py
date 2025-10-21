@@ -4,6 +4,15 @@ import pandas as pd
 import os
 import math
 
+# Import enhanced data functions
+import sys
+sys.path.append('utils')
+from enhanced_file_io import (
+    load_enhanced_codes, save_enhanced_codes,
+    get_categories, get_subcategories, 
+    get_category_colors, toggle_code_favorite
+)
+
 class CodeManagementScreen(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg='#0f1419')
@@ -12,9 +21,10 @@ class CodeManagementScreen(tk.Frame):
         # Animation variables
         self.animation_frame = 0
         
-        # Load codes data
-        self.codes_df = self.load_codes()
+        # Load enhanced codes data
+        self.codes_df = load_enhanced_codes()
         self.selected_code_index = None
+        self.category_colors = get_category_colors()
         
         self.create_background()
         self.create_content()
@@ -22,14 +32,9 @@ class CodeManagementScreen(tk.Frame):
 
     def create_background(self):
         """Create animated gradient background"""
-        # Create canvas for background effects
         self.bg_canvas = tk.Canvas(self, highlightthickness=0)
         self.bg_canvas.place(x=0, y=0, relwidth=1, relheight=1)
-        
-        # Bind resize event
         self.bg_canvas.bind('<Configure>', self.on_canvas_resize)
-        
-        # Initialize background
         self.draw_background()
     
     def draw_background(self):
@@ -51,7 +56,6 @@ class CodeManagementScreen(tk.Frame):
             r1, g1, b1 = 15, 20, 25   # Dark blue-gray
             r2, g2, b2 = 25, 35, 50   # Slightly lighter blue-gray
             
-            # Add subtle animation to gradient
             wave = math.sin(progress * math.pi + time_offset) * 0.1
             
             r = int(r1 + (r2 - r1) * (progress + wave))
@@ -106,7 +110,7 @@ class CodeManagementScreen(tk.Frame):
         # Main content container with glass effect
         self.content_frame = tk.Frame(self, bg='#1e293b', relief='ridge', bd=1)
         self.content_frame.place(relx=0.5, rely=0.5, anchor='center', 
-                                relwidth=0.85, relheight=0.9)
+                                relwidth=0.90, relheight=0.95)  # Bigger for new fields
         
         # Add subtle border
         border_frame = tk.Frame(self.content_frame, bg='#334155', height=2)
@@ -147,15 +151,19 @@ class CodeManagementScreen(tk.Frame):
         
         # Main title
         title_label = tk.Label(header_frame,
-                              text="Code Management",
+                              text="Enhanced Code Management",
                               font=('Segoe UI', 32, 'bold'),
                               fg='#ffffff',
                               bg='#1e293b')
         title_label.pack()
         
-        # Subtitle
+        # Subtitle with stats
+        categories = get_categories()
+        favorites_count = len(self.codes_df[self.codes_df['DefaultFavorite'] == True])
+        subtitle_text = f"Manage {len(self.codes_df)} codes • {len(categories)} categories • {favorites_count} favorites"
+        
         subtitle_label = tk.Label(header_frame,
-                                 text="Manage your master codes list",
+                                 text=subtitle_text,
                                  font=('Segoe UI', 12),
                                  fg='#94a3b8',
                                  bg='#1e293b')
@@ -190,7 +198,7 @@ class CodeManagementScreen(tk.Frame):
                 self.accent_canvas.create_line(i, 1, i+1, 1, fill=color, width=2)
     
     def create_main_content(self):
-        """Create main content area with codes list and input fields"""
+        """Create main content area with codes list and enhanced input fields"""
         main_container = tk.Frame(self.content_frame, bg='#1e293b')
         main_container.pack(expand=True, fill='both', padx=40, pady=20)
         
@@ -204,11 +212,11 @@ class CodeManagementScreen(tk.Frame):
         # Left panel - Codes list
         self.create_codes_list_panel(left_panel)
         
-        # Right panel - Input fields and actions
-        self.create_action_panel(right_panel)
+        # Right panel - Enhanced input fields and actions
+        self.create_enhanced_action_panel(right_panel)
     
     def create_codes_list_panel(self, parent):
-        """Create the codes list panel"""
+        """Create the codes list panel with enhanced filtering"""
         # Panel card
         list_card = tk.Frame(parent, bg='#2d3748', relief='ridge', bd=1)
         list_card.pack(fill='both', expand=True)
@@ -218,7 +226,7 @@ class CodeManagementScreen(tk.Frame):
         header_frame.pack(fill='x', padx=20, pady=(20, 10))
         
         codes_label = tk.Label(header_frame,
-                              text="🔤 Available Codes",
+                              text="🔤 Code List",
                               font=('Segoe UI', 16, 'bold'),
                               fg='#ffffff',
                               bg='#2d3748')
@@ -232,9 +240,13 @@ class CodeManagementScreen(tk.Frame):
                                          bg='#2d3748')
         self.codes_count_label.pack(side='left', padx=(10, 0))
         
+        # Enhanced filters frame
+        filters_frame = tk.Frame(list_card, bg='#2d3748')
+        filters_frame.pack(fill='x', padx=20, pady=(0, 10))
+        
         # Search frame
-        search_frame = tk.Frame(list_card, bg='#2d3748')
-        search_frame.pack(fill='x', padx=20, pady=(0, 10))
+        search_frame = tk.Frame(filters_frame, bg='#2d3748')
+        search_frame.pack(fill='x', pady=(0, 5))
         
         search_label = tk.Label(search_frame,
                                text="🔍",
@@ -252,6 +264,40 @@ class CodeManagementScreen(tk.Frame):
         self.search_entry.pack(side='left', fill='x', expand=True, padx=(10, 0), ipady=5)
         self.search_entry.bind('<KeyRelease>', self.filter_codes)
         
+        # Category filter frame
+        category_frame = tk.Frame(filters_frame, bg='#2d3748')
+        category_frame.pack(fill='x', pady=(5, 0))
+        
+        tk.Label(category_frame,
+                text="📂 Category:",
+                font=('Segoe UI', 10),
+                fg='#94a3b8',
+                bg='#2d3748').pack(side='left')
+        
+        self.filter_category_var = tk.StringVar(value="All")
+        self.filter_category_combo = ttk.Combobox(category_frame,
+                                                 textvariable=self.filter_category_var,
+                                                 width=20,
+                                                 state="readonly")
+        self.filter_category_combo.pack(side='left', padx=(10, 0))
+        self.filter_category_combo.bind('<<ComboboxSelected>>', self.filter_codes)
+        
+        # Favorites filter
+        self.favorites_only_var = tk.BooleanVar()
+        favorites_check = tk.Checkbutton(
+            category_frame,
+            text="⭐ Favorites Only",
+            variable=self.favorites_only_var,
+            command=self.filter_codes,
+            font=('Segoe UI', 10),
+            fg='#94a3b8',
+            bg='#2d3748',
+            selectcolor='#1e293b',
+            activebackground='#2d3748',
+            activeforeground='#ffffff'
+        )
+        favorites_check.pack(side='right')
+        
         # Listbox container
         listbox_container = tk.Frame(list_card, bg='#1e293b', relief='groove', bd=1)
         listbox_container.pack(fill='both', expand=True, padx=20, pady=(0, 20))
@@ -263,10 +309,10 @@ class CodeManagementScreen(tk.Frame):
         h_scrollbar = ttk.Scrollbar(listbox_container, orient='horizontal')
         h_scrollbar.pack(side='bottom', fill='x')
         
-        # Codes listbox
+        # Enhanced codes listbox
         self.codes_listbox = tk.Listbox(
             listbox_container,
-            font=('Segoe UI', 11),
+            font=('Segoe UI', 10),
             bg='#1e293b',
             fg='#ffffff',
             selectbackground='#10b981',
@@ -282,34 +328,43 @@ class CodeManagementScreen(tk.Frame):
         h_scrollbar.config(command=self.codes_listbox.xview)
         self.codes_listbox.bind('<<ListboxSelect>>', self.on_code_select)
         
-        # Load codes into listbox
+        # Load initial data
+        self.refresh_filter_options()
         self.refresh_codes_list()
     
-    def create_action_panel(self, parent):
-        """Create the action panel with input fields and buttons"""
+    def create_enhanced_action_panel(self, parent):
+        """Create the enhanced action panel with all new fields"""
         # Panel card
         action_card = tk.Frame(parent, bg='#2d3748', relief='ridge', bd=1)
         action_card.pack(fill='both')
         
-        # Panel content
-        content_frame = tk.Frame(action_card, bg='#2d3748')
-        content_frame.pack(fill='both', padx=30, pady=30)
+        # Panel content with scrolling for many fields
+        canvas_frame = tk.Frame(action_card, bg='#2d3748')
+        canvas_frame.pack(fill='both', expand=True, padx=30, pady=20)
         
         # Title
-        title_label = tk.Label(content_frame,
-                              text="Code Details",
+        title_label = tk.Label(canvas_frame,
+                              text="Enhanced Code Editor",
                               font=('Segoe UI', 18, 'bold'),
                               fg='#ffffff',
                               bg='#2d3748')
         title_label.pack(pady=(0, 20))
         
+        # Create scrollable content
+        self.create_input_fields(canvas_frame)
+        
+        # Action buttons at bottom
+        self.create_action_buttons(canvas_frame)
+    
+    def create_input_fields(self, parent):
+        """Create all input fields for enhanced code management"""
         # Code input
-        code_frame = tk.Frame(content_frame, bg='#2d3748')
-        code_frame.pack(fill='x', pady=10)
+        code_frame = tk.Frame(parent, bg='#2d3748')
+        code_frame.pack(fill='x', pady=8)
         
         tk.Label(code_frame,
                 text="Code:",
-                font=('Segoe UI', 12),
+                font=('Segoe UI', 12, 'bold'),
                 fg='#94a3b8',
                 bg='#2d3748',
                 width=12,
@@ -324,12 +379,12 @@ class CodeManagementScreen(tk.Frame):
         self.code_entry.pack(side='left', fill='x', expand=True, ipady=6)
         
         # Description input
-        desc_frame = tk.Frame(content_frame, bg='#2d3748')
-        desc_frame.pack(fill='x', pady=10)
+        desc_frame = tk.Frame(parent, bg='#2d3748')
+        desc_frame.pack(fill='x', pady=8)
         
         tk.Label(desc_frame,
                 text="Description:",
-                font=('Segoe UI', 12),
+                font=('Segoe UI', 12, 'bold'),
                 fg='#94a3b8',
                 bg='#2d3748',
                 width=12,
@@ -343,9 +398,107 @@ class CodeManagementScreen(tk.Frame):
                                   insertbackground='#ffffff')
         self.desc_entry.pack(side='left', fill='x', expand=True, ipady=6)
         
-        # Action buttons
-        buttons_frame = tk.Frame(content_frame, bg='#2d3748')
-        buttons_frame.pack(pady=(30, 0))
+        # Category selection
+        category_frame = tk.Frame(parent, bg='#2d3748')
+        category_frame.pack(fill='x', pady=8)
+        
+        tk.Label(category_frame,
+                text="Category:",
+                font=('Segoe UI', 12, 'bold'),
+                fg='#94a3b8',
+                bg='#2d3748',
+                width=12,
+                anchor='w').pack(side='left')
+        
+        self.category_var = tk.StringVar()
+        self.category_combo = ttk.Combobox(category_frame,
+                                          textvariable=self.category_var,
+                                          font=('Segoe UI', 12),
+                                          width=25)
+        self.category_combo.pack(side='left', fill='x', expand=True)
+        self.category_combo.bind('<<ComboboxSelected>>', self.on_category_change)
+        
+        # SubCategory selection
+        subcategory_frame = tk.Frame(parent, bg='#2d3748')
+        subcategory_frame.pack(fill='x', pady=8)
+        
+        tk.Label(subcategory_frame,
+                text="SubCategory:",
+                font=('Segoe UI', 12, 'bold'),
+                fg='#94a3b8',
+                bg='#2d3748',
+                width=12,
+                anchor='w').pack(side='left')
+        
+        self.subcategory_var = tk.StringVar()
+        self.subcategory_combo = ttk.Combobox(subcategory_frame,
+                                             textvariable=self.subcategory_var,
+                                             font=('Segoe UI', 12),
+                                             width=25)
+        self.subcategory_combo.pack(side='left', fill='x', expand=True)
+        
+        # Favorite checkbox with visual indicator
+        favorite_frame = tk.Frame(parent, bg='#2d3748')
+        favorite_frame.pack(fill='x', pady=8)
+        
+        tk.Label(favorite_frame,
+                text="Favorite:",
+                font=('Segoe UI', 12, 'bold'),
+                fg='#94a3b8',
+                bg='#2d3748',
+                width=12,
+                anchor='w').pack(side='left')
+        
+        self.favorite_var = tk.BooleanVar()
+        self.favorite_check = tk.Checkbutton(
+            favorite_frame,
+            text="⭐ Mark as Favorite",
+            variable=self.favorite_var,
+            font=('Segoe UI', 12),
+            fg='#fbbf24',
+            bg='#2d3748',
+            selectcolor='#1e293b',
+            activebackground='#2d3748',
+            activeforeground='#fbbf24'
+        )
+        self.favorite_check.pack(side='left')
+        
+        # Notes text area
+        notes_frame = tk.Frame(parent, bg='#2d3748')
+        notes_frame.pack(fill='both', expand=True, pady=8)
+        
+        tk.Label(notes_frame,
+                text="Notes:",
+                font=('Segoe UI', 12, 'bold'),
+                fg='#94a3b8',
+                bg='#2d3748').pack(anchor='w')
+        
+        # Notes text widget with scrollbar
+        notes_container = tk.Frame(notes_frame, bg='#1e293b', relief='groove', bd=1)
+        notes_container.pack(fill='both', expand=True, pady=(5, 0))
+        
+        notes_scrollbar = ttk.Scrollbar(notes_container)
+        notes_scrollbar.pack(side='right', fill='y')
+        
+        self.notes_text = tk.Text(notes_container,
+                                 font=('Segoe UI', 10),
+                                 bg='#1e293b',
+                                 fg='#ffffff',
+                                 relief='flat',
+                                 height=6,
+                                 wrap='word',
+                                 insertbackground='#ffffff',
+                                 yscrollcommand=notes_scrollbar.set)
+        self.notes_text.pack(side='left', fill='both', expand=True)
+        notes_scrollbar.config(command=self.notes_text.yview)
+        
+        # Load dropdown options
+        self.load_category_options()
+    
+    def create_action_buttons(self, parent):
+        """Create enhanced action buttons"""
+        buttons_frame = tk.Frame(parent, bg='#2d3748')
+        buttons_frame.pack(pady=(20, 0))
         
         button_configs = [
             {'text': '➕ Add Code', 'command': self.add_code, 'color': '#10b981'},
@@ -368,7 +521,7 @@ class CodeManagementScreen(tk.Frame):
                 pady=10,
                 width=18
             )
-            btn.pack(pady=5)
+            btn.pack(pady=3)
             
             # Hover effects
             def on_enter(event, button=btn, color=config['color']):
@@ -382,14 +535,243 @@ class CodeManagementScreen(tk.Frame):
             btn.bind('<Enter>', on_enter)
             btn.bind('<Leave>', on_leave)
     
+    def load_category_options(self):
+        """Load category and subcategory options"""
+        categories = get_categories()
+        category_names = [cat['name'] for cat in categories]
+        
+        self.category_combo['values'] = category_names
+        
+        # Set default if empty
+        if not self.category_var.get() and category_names:
+            self.category_var.set(category_names[0])
+            self.on_category_change()
+    
+    def on_category_change(self, event=None):
+        """Update subcategories when category changes"""
+        selected_category = self.category_var.get()
+        if selected_category:
+            subcategories = get_subcategories(selected_category)
+            self.subcategory_combo['values'] = subcategories
+            if subcategories:
+                self.subcategory_var.set(subcategories[0])
+    
+    def refresh_filter_options(self):
+        """Refresh filter dropdown options"""
+        categories = get_categories()
+        category_names = ["All"] + [cat['name'] for cat in categories]
+        self.filter_category_combo['values'] = category_names
+    
+    def refresh_codes_list(self):
+        """Refresh the codes listbox with enhanced display"""
+        self.codes_listbox.delete(0, tk.END)
+        
+        # Get current filters
+        search_term = self.search_entry.get().lower()
+        filter_category = self.filter_category_var.get()
+        favorites_only = self.favorites_only_var.get()
+        
+        # Filter codes
+        filtered_df = self.codes_df.copy()
+        
+        if search_term:
+            mask = (
+                filtered_df['Code'].astype(str).str.lower().str.contains(search_term, na=False) |
+                filtered_df['Description'].astype(str).str.lower().str.contains(search_term, na=False) |
+                filtered_df['Notes'].astype(str).str.lower().str.contains(search_term, na=False)
+            )
+            filtered_df = filtered_df[mask]
+        
+        if filter_category != "All":
+            filtered_df = filtered_df[filtered_df['Category'] == filter_category]
+        
+        if favorites_only:
+            filtered_df = filtered_df[filtered_df['DefaultFavorite'] == True]
+        
+        # Add codes to listbox with enhanced display
+        for idx, row in filtered_df.iterrows():
+            code = str(row['Code'])
+            desc = str(row['Description'])
+            category = str(row.get('Category', 'Unknown'))
+            is_favorite = row.get('DefaultFavorite', False)
+            
+            # Create enhanced display text
+            favorite_star = "⭐ " if is_favorite else ""
+            category_badge = f"[{category[:8]}]"
+            display_text = f"{favorite_star}{code} - {desc} {category_badge}"
+            
+            self.codes_listbox.insert(tk.END, display_text)
+        
+        self.codes_count_label.config(text=f"({len(filtered_df)} codes)")
+    
+    def filter_codes(self, event=None):
+        """Filter codes based on current criteria"""
+        self.refresh_codes_list()
+    
+    def on_code_select(self, event):
+        """Handle code selection from listbox"""
+        try:
+            selection = self.codes_listbox.curselection()
+            if selection:
+                index = selection[0]
+                selected_text = self.codes_listbox.get(index)
+                
+                # Extract code from display text (remove favorite star and category)
+                display_parts = selected_text.replace("⭐ ", "").split(" - ")
+                code_part = display_parts[0]
+                
+                # Find the actual index in the dataframe
+                mask = self.codes_df['Code'].astype(str) == code_part
+                if mask.any():
+                    self.selected_code_index = self.codes_df[mask].index[0]
+                    row = self.codes_df.loc[self.selected_code_index]
+                    
+                    # Populate all fields
+                    self.code_entry.delete(0, tk.END)
+                    self.code_entry.insert(0, str(row['Code']))
+                    
+                    self.desc_entry.delete(0, tk.END)
+                    self.desc_entry.insert(0, str(row['Description']))
+                    
+                    self.category_var.set(str(row.get('Category', '')))
+                    self.on_category_change()  # Update subcategories
+                    
+                    self.subcategory_var.set(str(row.get('SubCategory', '')))
+                    
+                    self.favorite_var.set(row.get('DefaultFavorite', False))
+                    
+                    self.notes_text.delete('1.0', tk.END)
+                    notes = str(row.get('Notes', ''))
+                    if notes and notes != 'nan':
+                        self.notes_text.insert('1.0', notes)
+        except Exception as e:
+            print(f"Selection error: {e}")
+    
+    def add_code(self):
+        """Add a new code with all enhanced fields"""
+        code = self.code_entry.get().strip()
+        desc = self.desc_entry.get().strip()
+        category = self.category_var.get()
+        subcategory = self.subcategory_var.get()
+        is_favorite = self.favorite_var.get()
+        notes = self.notes_text.get('1.0', tk.END).strip()
+        
+        if not code:
+            messagebox.showwarning("Missing Code", "Please enter a code.")
+            return
+        
+        # Check for duplicate
+        if code in self.codes_df['Code'].values:
+            messagebox.showwarning("Duplicate Code", "This code already exists.")
+            return
+        
+        # Add new code with all fields
+        new_row = {
+            'Code': code,
+            'Description': desc,
+            'Category': category,
+            'SubCategory': subcategory,
+            'DefaultFavorite': is_favorite,
+            'Notes': notes
+        }
+        
+        new_df = pd.DataFrame([new_row])
+        self.codes_df = pd.concat([self.codes_df, new_df], ignore_index=True)
+        
+        # Sort by code
+        self.codes_df = self.codes_df.sort_values('Code').reset_index(drop=True)
+        
+        # Save enhanced codes
+        save_enhanced_codes(self.codes_df)
+        
+        self.refresh_codes_list()
+        self.clear_fields()
+        
+        messagebox.showinfo("Success", f"Code '{code}' added successfully with enhanced details.")
+    
+    def update_code(self):
+        """Update selected code with all enhanced fields"""
+        if self.selected_code_index is None:
+            messagebox.showwarning("No Selection", "Please select a code to update.")
+            return
+        
+        code = self.code_entry.get().strip()
+        desc = self.desc_entry.get().strip()
+        category = self.category_var.get()
+        subcategory = self.subcategory_var.get()
+        is_favorite = self.favorite_var.get()
+        notes = self.notes_text.get('1.0', tk.END).strip()
+        
+        if not code:
+            messagebox.showwarning("Missing Code", "Please enter a code.")
+            return
+        
+        # Check if changing code to a duplicate
+        old_code = str(self.codes_df.loc[self.selected_code_index, 'Code'])
+        if code != old_code and code in self.codes_df['Code'].values:
+            messagebox.showwarning("Duplicate Code", "This code already exists.")
+            return
+        
+        # Update all fields
+        self.codes_df.loc[self.selected_code_index, 'Code'] = code
+        self.codes_df.loc[self.selected_code_index, 'Description'] = desc
+        self.codes_df.loc[self.selected_code_index, 'Category'] = category
+        self.codes_df.loc[self.selected_code_index, 'SubCategory'] = subcategory
+        self.codes_df.loc[self.selected_code_index, 'DefaultFavorite'] = is_favorite
+        self.codes_df.loc[self.selected_code_index, 'Notes'] = notes
+        
+        # Resort
+        self.codes_df = self.codes_df.sort_values('Code').reset_index(drop=True)
+        
+        # Save enhanced codes
+        save_enhanced_codes(self.codes_df)
+        
+        self.refresh_codes_list()
+        
+        messagebox.showinfo("Success", "Code updated successfully with enhanced details.")
+    
+    def delete_code(self):
+        """Delete selected code"""
+        if self.selected_code_index is None:
+            messagebox.showwarning("No Selection", "Please select a code to delete.")
+            return
+        
+        code = str(self.codes_df.loc[self.selected_code_index, 'Code'])
+        
+        confirm = messagebox.askyesno("Delete Code", 
+                                     f"Are you sure you want to delete code '{code}'?")
+        
+        if confirm:
+            self.codes_df = self.codes_df.drop(self.selected_code_index).reset_index(drop=True)
+            save_enhanced_codes(self.codes_df)
+            self.refresh_codes_list()
+            self.clear_fields()
+            self.selected_code_index = None
+            
+            messagebox.showinfo("Success", "Code deleted successfully.")
+    
+    def clear_fields(self):
+        """Clear all input fields"""
+        self.code_entry.delete(0, tk.END)
+        self.desc_entry.delete(0, tk.END)
+        self.category_var.set('')
+        self.subcategory_var.set('')
+        self.favorite_var.set(False)
+        self.notes_text.delete('1.0', tk.END)
+        self.selected_code_index = None
+        self.codes_listbox.selection_clear(0, tk.END)
+    
     def create_footer(self):
         """Create footer with stats and back button"""
         footer_frame = tk.Frame(self.content_frame, bg='#1e293b')
         footer_frame.pack(side='bottom', fill='x', pady=(10, 20))
         
         # Stats
+        categories = get_categories()
+        favorites_count = len(self.codes_df[self.codes_df['DefaultFavorite'] == True])
+        
         stats_label = tk.Label(footer_frame,
-                              text="💡 Tip: Double-click a code to edit it quickly",
+                              text=f"💡 Managing {len(self.codes_df)} codes across {len(categories)} categories • {favorites_count} favorites",
                               font=('Segoe UI', 10),
                               fg='#64748b',
                               bg='#1e293b')
@@ -413,152 +795,6 @@ class CodeManagementScreen(tk.Frame):
         # Hover effects
         back_btn.bind('<Enter>', lambda e: back_btn.config(bg='#334155'))
         back_btn.bind('<Leave>', lambda e: back_btn.config(bg='#475569'))
-    
-    def load_codes(self):
-        """Load codes from CSV file"""
-        if os.path.exists("ALD_codes.csv"):
-            df = pd.read_csv("ALD_codes.csv")
-            # Ensure proper column structure
-            if 'Code' not in df.columns:
-                df['Code'] = ''
-            if 'Description' not in df.columns:
-                df['Description'] = ''
-            return df
-        else:
-            # Create new DataFrame with proper structure
-            return pd.DataFrame(columns=['Code', 'Description'])
-    
-    def save_codes(self):
-        """Save codes to CSV file"""
-        self.codes_df.to_csv("ALD_codes.csv", index=False)
-    
-    def refresh_codes_list(self):
-        """Refresh the codes listbox"""
-        self.codes_listbox.delete(0, tk.END)
-        
-        search_term = self.search_entry.get().lower()
-        
-        for idx, row in self.codes_df.iterrows():
-            code = str(row['Code'])
-            desc = str(row['Description'])
-            display_text = f"{code} - {desc}"
-            
-            # Filter based on search
-            if search_term == '' or search_term in code.lower() or search_term in desc.lower():
-                self.codes_listbox.insert(tk.END, display_text)
-        
-        self.codes_count_label.config(text=f"({len(self.codes_df)} codes)")
-    
-    def filter_codes(self, event):
-        """Filter codes based on search entry"""
-        self.refresh_codes_list()
-    
-    def on_code_select(self, event):
-        """Handle code selection from listbox"""
-        try:
-            selection = self.codes_listbox.curselection()
-            if selection:
-                index = selection[0]
-                selected_text = self.codes_listbox.get(index)
-                
-                # Find the actual index in the dataframe
-                # This accounts for filtered results
-                code_part = selected_text.split(' - ')[0]
-                self.selected_code_index = self.codes_df[self.codes_df['Code'] == code_part].index[0]
-                
-                # Populate entry fields
-                self.code_entry.delete(0, tk.END)
-                self.code_entry.insert(0, self.codes_df.loc[self.selected_code_index, 'Code'])
-                
-                self.desc_entry.delete(0, tk.END)
-                self.desc_entry.insert(0, self.codes_df.loc[self.selected_code_index, 'Description'])
-        except:
-            pass
-    
-    def add_code(self):
-        """Add a new code"""
-        code = self.code_entry.get().strip()
-        desc = self.desc_entry.get().strip()
-        
-        if not code:
-            messagebox.showwarning("Missing Code", "Please enter a code.")
-            return
-        
-        # Check for duplicate
-        if code in self.codes_df['Code'].values:
-            messagebox.showwarning("Duplicate Code", "This code already exists.")
-            return
-        
-        # Add new code
-        new_row = pd.DataFrame([{'Code': code, 'Description': desc}])
-        self.codes_df = pd.concat([self.codes_df, new_row], ignore_index=True)
-        
-        # Sort by code
-        self.codes_df = self.codes_df.sort_values('Code').reset_index(drop=True)
-        
-        self.save_codes()
-        self.refresh_codes_list()
-        self.clear_fields()
-        
-        messagebox.showinfo("Success", f"Code '{code}' added successfully.")
-    
-    def update_code(self):
-        """Update selected code"""
-        if self.selected_code_index is None:
-            messagebox.showwarning("No Selection", "Please select a code to update.")
-            return
-        
-        code = self.code_entry.get().strip()
-        desc = self.desc_entry.get().strip()
-        
-        if not code:
-            messagebox.showwarning("Missing Code", "Please enter a code.")
-            return
-        
-        # Check if changing code to a duplicate
-        old_code = self.codes_df.loc[self.selected_code_index, 'Code']
-        if code != old_code and code in self.codes_df['Code'].values:
-            messagebox.showwarning("Duplicate Code", "This code already exists.")
-            return
-        
-        # Update the code
-        self.codes_df.loc[self.selected_code_index, 'Code'] = code
-        self.codes_df.loc[self.selected_code_index, 'Description'] = desc
-        
-        # Resort
-        self.codes_df = self.codes_df.sort_values('Code').reset_index(drop=True)
-        
-        self.save_codes()
-        self.refresh_codes_list()
-        
-        messagebox.showinfo("Success", "Code updated successfully.")
-    
-    def delete_code(self):
-        """Delete selected code"""
-        if self.selected_code_index is None:
-            messagebox.showwarning("No Selection", "Please select a code to delete.")
-            return
-        
-        code = self.codes_df.loc[self.selected_code_index, 'Code']
-        
-        confirm = messagebox.askyesno("Delete Code", 
-                                     f"Are you sure you want to delete code '{code}'?")
-        
-        if confirm:
-            self.codes_df = self.codes_df.drop(self.selected_code_index).reset_index(drop=True)
-            self.save_codes()
-            self.refresh_codes_list()
-            self.clear_fields()
-            self.selected_code_index = None
-            
-            messagebox.showinfo("Success", "Code deleted successfully.")
-    
-    def clear_fields(self):
-        """Clear all input fields"""
-        self.code_entry.delete(0, tk.END)
-        self.desc_entry.delete(0, tk.END)
-        self.selected_code_index = None
-        self.codes_listbox.selection_clear(0, tk.END)
     
     def start_animations(self):
         """Start background animations"""

@@ -1,3 +1,5 @@
+# This should already be working based on your test, but here's the complete version
+
 import os
 import pandas as pd
 from typing import List, Dict, Optional
@@ -32,7 +34,6 @@ def load_books():
         
         return df
     
-    # Return empty DataFrame with required structure
     return pd.DataFrame(columns=['Book', 'Code', 'Description', 'Category', 'CustomOrder'])
 
 def save_books(df):
@@ -40,20 +41,14 @@ def save_books(df):
     df.to_csv(BOOKS_CSV, index=False)
 
 def load_enhanced_codes():
-    """
-    Load enhanced codes with hierarchical categories and features.
-    Your structure: Code, Description, Category, SubCategory, DefaultFavorite, Notes
-    """
+    """Load enhanced codes with hierarchical categories and features"""
     if os.path.exists(ENHANCED_CODES_CSV):
         try:
-            # Try UTF-8 first
             df = pd.read_csv(ENHANCED_CODES_CSV, encoding='utf-8')
         except UnicodeDecodeError:
             try:
-                # Fallback to cp1252
                 df = pd.read_csv(ENHANCED_CODES_CSV, encoding='cp1252')
             except UnicodeDecodeError:
-                # Final fallback
                 df = pd.read_csv(ENHANCED_CODES_CSV, encoding='latin-1')
         
         # Ensure all expected columns exist
@@ -81,22 +76,17 @@ def load_enhanced_codes():
         
         return df
     
-    # Fallback to basic codes and enhance them
+    # Fallback to basic codes
     if os.path.exists(CODES_CSV):
         df = pd.read_csv(CODES_CSV)
-        # Add enhanced columns to match your structure
         df['Category'] = 'Uncategorized'
         df['SubCategory'] = 'General'
         df['DefaultFavorite'] = False
         df['Notes'] = ''
-        
-        # Clean data
         df['Code'] = df['Code'].fillna("").astype(str)
         df['Description'] = df['Description'].fillna("").astype(str)
-        
         return df
     
-    # Return empty enhanced structure
     return pd.DataFrame(columns=['Code', 'Description', 'Category', 'SubCategory', 'DefaultFavorite', 'Notes'])
 
 def save_enhanced_codes(df):
@@ -109,7 +99,7 @@ def get_categories() -> List[Dict]:
     if 'Category' not in df.columns:
         return [{'name': 'Uncategorized', 'color': '#64748b', 'count': len(df), 'subcategories': []}]
     
-    # Define colors for different categories
+    # Define colors for your 15 categories
     category_colors = {
         'Defective': '#ef4444',           # Red
         'Damaged': '#dc2626',             # Dark red  
@@ -172,13 +162,11 @@ def get_codes_by_category(category_name: str = None, subcategory_name: str = Non
     
     if 'Category' in df.columns:
         df = df[df['Category'] == category_name]
-        
         if subcategory_name and subcategory_name != 'All' and 'SubCategory' in df.columns:
             df = df[df['SubCategory'] == subcategory_name]
-            
         return df
     else:
-        return df  # Return all if no categories exist
+        return df
 
 def get_favorite_codes():
     """Get all codes marked as favorites"""
@@ -216,19 +204,6 @@ def update_code_notes(code: str, notes: str) -> bool:
         save_enhanced_codes(df)
         return True
     return False
-
-def assign_codes_to_category(codes: List[str], category_name: str, subcategory_name: str = 'General'):
-    """Assign multiple codes to a category and subcategory"""
-    df = load_enhanced_codes()
-    
-    for code in codes:
-        mask = df['Code'] == code
-        if mask.any():
-            df.loc[mask, 'Category'] = category_name
-            if 'SubCategory' in df.columns:
-                df.loc[mask, 'SubCategory'] = subcategory_name
-    
-    save_enhanced_codes(df)
 
 def search_codes(search_term: str, category: str = None, subcategory: str = None, favorites_only: bool = False) -> pd.DataFrame:
     """Search codes by term, optionally within a category/subcategory"""
@@ -273,69 +248,3 @@ def get_category_colors():
         'No Functional Repair': '#6366f1', # Indigo
         'Leak': '#ec4899'                 # Pink
     }
-
-def migrate_existing_data():
-    """
-    Migrate existing data to enhanced format
-    This should be run once to upgrade existing installations
-    """
-    print("Migrating existing data to enhanced format...")
-    
-    # Load existing codes and enhance them
-    if os.path.exists(CODES_CSV) and not os.path.exists(ENHANCED_CODES_CSV):
-        df = pd.read_csv(CODES_CSV)
-        df['Category'] = 'General'  # Default category
-        df['SubCategory'] = 'General'  # Default subcategory
-        df['DefaultFavorite'] = False
-        df['Notes'] = ''
-        
-        save_enhanced_codes(df)
-        print(f"Migrated {len(df)} codes to enhanced format")
-    
-    # Update books to ensure they have Category column
-    books_df = load_books()
-    if len(books_df) > 0:
-        save_books(books_df)
-        print(f"Updated {len(books_df)} book entries")
-    
-    print("Migration complete!")
-
-if __name__ == "__main__":
-    # Test the enhanced data loading with your actual structure
-    print("Testing enhanced data system with your ALD_CDS.csv structure...")
-    
-    try:
-        # Try loading enhanced codes
-        codes_df = load_enhanced_codes()
-        print(f"✅ Loaded {len(codes_df)} codes")
-        print(f"📋 Columns: {list(codes_df.columns)}")
-        
-        if len(codes_df) > 0:
-            print(f"📄 Sample data:")
-            sample = codes_df.head(2)[['Code', 'Description', 'Category', 'SubCategory', 'DefaultFavorite']].to_string()
-            print(f"   {sample}")
-        
-        # Show categories (your main grouping system)
-        categories = get_categories()
-        print(f"\n🏷️  Found {len(categories)} categories:")
-        for category in categories[:5]:  # Show first 5
-            print(f"   📂 {category['name']}: {category['count']} codes (Color: {category['color']})")
-            if category['subcategories']:
-                subcats = ', '.join(category['subcategories'][:3])
-                more = f" (+{len(category['subcategories'])-3} more)" if len(category['subcategories']) > 3 else ""
-                print(f"      └── Subcategories: {subcats}{more}")
-        
-        # Show favorites
-        favorites = get_favorite_codes()
-        favorite_count = len(favorites)
-        print(f"\n⭐ Found {favorite_count} favorite codes")
-        if favorite_count > 0:
-            for _, fav in favorites.head(3).iterrows():
-                print(f"   ⭐ {fav['Code']} - {fav['Description']}")
-        
-        print("✅ Enhanced data system ready for your hierarchical structure!")
-        
-    except Exception as e:
-        print(f"❌ Error testing data system: {e}")
-        import traceback
-        traceback.print_exc()
